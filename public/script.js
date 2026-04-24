@@ -116,13 +116,13 @@ function isLoggedIn() {
   return Boolean(currentUser);
 }
 
-const response = await fetch(url, {
-  headers: {
-    "Content-Type": "application/json"
-  },
-  credentials: "include",
-  ...options
-});
+async function request(url, options = {}) {
+  const response = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    ...options
+  });
 
   let payload;
   try {
@@ -645,8 +645,7 @@ leaderboardEl.addEventListener("click", (event) => {
     return;
   }
 
-  const action = button.dataset.action;
-const id = Number(button.dataset.id);
+  const { action, id } = button.dataset;
 
   if (action === "move-up") {
     moveLevel(id, -1);
@@ -674,7 +673,7 @@ submissionListEl.addEventListener("click", (event) => {
     return;
   }
 
-  handleSubmissionAction(Number(button.dataset.id), button.dataset.submissionAction);
+  handleSubmissionAction(button.dataset.id, button.dataset.submissionAction);
 });
 
 navButtons.forEach((button) => {

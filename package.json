@@ -1,0 +1,29 @@
+{
+  "name": "lcl-level-challenge-list",
+  "version": "2.0.0",
+  "description": "Level Challenge List leaderboard app with session auth and admin controls.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "leaderboard",
+    "express",
+    "vanilla-js",
+    "authentication",
+    "session",
+    "postgresql",
+    "supabase"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
+    "bcrypt": "^6.0.0",
+    "connect-pg-simple": "^10.0.0",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "pg": "^8.11.3"
+  }
+}

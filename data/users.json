@@ -1,0 +1,26 @@
+[
+  {
+    "id": "admin-1",
+    "username": "officialmaencopra",
+    "email": "officialmaencopra@gmail.com",
+    "displayName": "Official Maencopra",
+    "password": "$2b$10$SSvH1y8CBNjcOnw1jVNLleTWsatMieXV/iikAw5iBeO.XonF18iEu",
+    "role": "admin"
+  },
+  {
+    "id": "1776862283969",
+    "username": "speedcoprareal",
+    "email": "speedcoprareal@gmail.com",
+    "displayName": "test",
+    "password": "$2b$10$a532iozqrlTEbNEa72L.FO5sUy/UlXwuSUNECacS6ren6R1j4/J2a",
+    "role": "user"
+  },
+  {
+    "id": "1776967385735",
+    "username": "ishowspeedbrother",
+    "email": "speedcopradumbass@gmail.com",
+    "displayName": "Ishowspeed",
+    "password": "$2b$10$slpQdR3OFndD5UV5A4NNkuu8x1LULXp6aj.s5W3N63fzU5TA5YhlW",
+    "role": "user"
+  }
+]

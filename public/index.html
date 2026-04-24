@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LCL</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <div class="header-titles">
+        <h1>LCL</h1>
+        <p class="subtitle">Level Challenge List</p>
+      </div>
+
+      <div class="header-controls">
+        <div class="user-panel">
+          <span id="currentUserLabel">Guest</span>
+          <button id="logoutBtn" class="ghost-button hidden" type="button">Logout</button>
+        </div>
+
+        <button id="menuToggleBtn" class="primary-button">Menu &#9776;</button>
+      </div>
+    </header>
+
+    <!-- Sidebar Overlay (dims background) -->
+    <div id="menuOverlay" class="menu-overlay"></div>
+
+    <!-- Sliding Sidebar Menu -->
+    <aside id="sidebarMenu" class="sidebar-menu">
+      <div class="sidebar-head">
+        <h2>Navigation</h2>
+        <button id="closeMenuBtn" class="ghost-button" title="Close Menu">&times;</button>
+      </div>
+      <nav class="nav-links">
+        <button class="nav-link active" type="button" data-view="leaderboard">Leaderboard</button>
+        <button class="nav-link" type="button" data-view="sendLevel">Send Level</button>
+        <button class="nav-link" type="button" data-view="rules">Rules</button>
+        <button class="nav-link guest-only" type="button" data-view="login">Login</button>
+        <button class="nav-link guest-only" type="button" data-view="register">Register</button>
+        <button class="nav-link admin-only hidden" type="button" data-view="adminReview">
+          Admin Panel
+          <span id="submissionBadge" class="badge hidden">0</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div id="globalMessage" class="message hidden" role="alert"></div>
+
+    <main>
+      <section id="leaderboardView" class="view active">
+        <div class="leaderboard-layout">
+          <section class="panel leaderboard-panel">
+            <div class="panel-head">
+              <h2>Leaderboard</h2>
+              <button id="refreshBtn" class="ghost-button" type="button">Refresh</button>
+            </div>
+
+            <div class="table-head">
+              <span>Rank</span>
+              <span>Level</span>
+              <span>Difficulty</span>
+              <span id="actionsHeader">Actions</span>
+            </div>
+
+            <div id="leaderboard" class="leaderboard-list"></div>
+            <div id="emptyState" class="empty-state hidden">No levels yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="sendLevelView" class="view">
+        <div class="auth-wrap">
+          <div class="panel auth-panel">
+            <h2>Send Level</h2>
+            <form id="submissionForm" class="form-grid">
+              <label>
+                <span>Your Name</span>
+                <input id="senderName" type="text" maxlength="40" required>
+              </label>
+              <label>
+                <span>Level Name</span>
+                <input id="submissionLevelName" type="text" maxlength="60" required>
+              </label>
+              <label>
+                <span>Creator</span>
+                <input id="submissionCreator" type="text" maxlength="60" required>
+              </label>
+              <label>
+                <span>Difficulty</span>
+                <select id="submissionDifficulty" required>
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                  <option value="Extreme">Extreme</option>
+                </select>
+              </label>
+              <label>
+                <span>Real Challenge?</span>
+                <select id="submissionIsChallenge" required>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </label>
+              <label>
+                <span>YouTube Video URL</span>
+                <input id="submissionYoutubeUrl" type="url" maxlength="300" placeholder="https://youtube.com/..." required>
+              </label>
+              <button class="primary-button" type="submit">Send Level</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="rulesView" class="view">
+        <div class="panel rules-panel">
+          <h2>Rules</h2>
+          <div class="rules-grid">
+            <div class="rules-text">
+              <p>1. It must be at least one minute long.</p>
+              <p>2. All game modes are allowed.</p>
+              <p>3. CBF mod is allowed, but cheats such as Micro are not allowed.</p>
+              <p>4. You must show proof by sending a YouTube video URL.</p>
+            </div>
+            <div class="rules-media">
+              <img src="assets/rule1.jpg" alt="Rule example image">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="loginView" class="view">
+        <div class="auth-wrap">
+          <div class="panel auth-panel">
+            <h2>Login</h2>
+            <form id="loginForm" class="form-grid">
+              <label>
+                <span>Email</span>
+                <input id="loginEmail" type="email" maxlength="120" required>
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="loginPassword" type="password" maxlength="72" required>
+              </label>
+              <button class="primary-button" type="submit">Login</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="registerView" class="view">
+        <div class="auth-wrap">
+          <div class="panel auth-panel">
+            <h2>Register</h2>
+            <form id="registerForm" class="form-grid">
+              <label>
+                <span>Username</span>
+                <input id="registerUsername" type="text" maxlength="20" required>
+              </label>
+              <label>
+                <span>Display Name</span>
+                <input id="registerDisplayName" type="text" maxlength="40" required>
+              </label>
+              <label>
+                <span>Email</span>
+                <input id="registerEmail" type="email" maxlength="120" required>
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="registerPassword" type="password" maxlength="72" required>
+              </label>
+              <button class="primary-button" type="submit">Register</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminReviewView" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Admin Panel</h2>
+            <span id="submissionCountText" class="subtle-text">0 submissions</span>
+          </div>
+
+          <div class="grant-admin-box">
+            <h3>Give Admin</h3>
+            <form id="grantAdminForm" class="grant-admin-form">
+              <input id="grantAdminUsername" type="text" maxlength="20" placeholder="Username" required>
+              <button class="primary-button" type="submit">Give Admin</button>
+            </form>
+          </div>
+
+          <div id="adminPanel" class="admin-tools hidden">
+            <div class="admin-head">
+              <h3 id="formTitle">Add Level</h3>
+              <button id="cancelEditBtn" class="ghost-button hidden" type="button">Cancel</button>
+            </div>
+
+            <form id="levelForm" class="admin-form">
+              <input type="hidden" id="levelId">
+              <input id="name" name="name" type="text" maxlength="60" placeholder="Level name" required>
+              <input id="creator" name="creator" type="text" maxlength="60" placeholder="Creator" required>
+              <select id="difficulty" name="difficulty" required>
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+                <option value="Extreme">Extreme</option>
+              </select>
+              <input id="position" name="position" type="number" min="1" step="1" placeholder="Position" required>
+              <input id="youtubeUrl" name="youtubeUrl" type="url" maxlength="300" placeholder="YouTube URL">
+              <button id="submitBtn" class="primary-button" type="submit">Add Level</button>
+            </form>
+          </div>
+
+          <p class="subtle-text admin-note">Use position numbers to reorder levels. Set a level to position 2 to make it top 2.</p>
+
+          <div id="submissionList" class="submission-list"></div>
+          <div id="submissionEmptyState" class="empty-state hidden">No submitted levels right now.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -32,6 +32,20 @@ select {
   border: 1px solid #30363d;
 }
 
+.header-titles {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #30363d;
+}
+
 h1 {
   margin: 0;
   font-size: 28px;

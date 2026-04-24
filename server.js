@@ -155,9 +155,7 @@ function sortAndReposition(levels) {
   return [...levels]
     .sort((a, b) => (a.position || 999999) - (b.position || 999999))
     .map((level, index) => {
-      // FIX: Permanently strip out 'points', 'text', and other unwanted fields from the DB
       const { points, text, ...rest } = level;
-      
       return {
         ...rest,
         position: index + 1

@@ -6,6 +6,14 @@ const bcrypt = require("bcrypt");
 const fs = require("fs/promises");
 const path = require("path");
 
+// --- NEW SUPABASE STUFF ---
+const { createClient } = require("@supabase/supabase-js");
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+// This safely connects to Supabase ONLY if you put the variables in Render!
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+// --------------------------
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || "lcl-change-this-secret";
@@ -160,11 +168,29 @@ function sortAndReposition(levels) {
 async function writeLevels(levels) {
   const normalizedLevels = sortAndReposition(levels);
   await fs.writeFile(LEVELS_FILE, `${JSON.stringify(normalizedLevels, null, 2)}\n`, "utf8");
+  
+  // --- NEW SUPABASE STUFF ---
+  if (supabase) {
+    supabase.from('levels').upsert(normalizedLevels).then(({ error }) => {
+      if (error) console.error("Supabase Levels Sync Error:", error);
+    });
+  }
+  // --------------------------
+  
   return normalizedLevels;
 }
 
 async function writeSubmissions(submissions) {
   await fs.writeFile(SUBMISSIONS_FILE, `${JSON.stringify(submissions, null, 2)}\n`, "utf8");
+  
+  // --- NEW SUPABASE STUFF ---
+  if (supabase) {
+    supabase.from('submissions').upsert(submissions).then(({ error }) => {
+      if (error) console.error("Supabase Submissions Sync Error:", error);
+    });
+  }
+  // --------------------------
+  
   return submissions;
 }
 
@@ -196,7 +222,7 @@ async function ensureUsersFile() {
     migratedUsers.unshift(DEFAULT_ADMIN);
   }
 
-  await fs.writeFile(USERS_FILE, `${JSON.stringify(migratedUsers, null, 2)}\n`, "utf8");
+  await writeUsers(migratedUsers);
 }
 
 async function readUsers() {
@@ -206,6 +232,15 @@ async function readUsers() {
 
 async function writeUsers(users) {
   await fs.writeFile(USERS_FILE, `${JSON.stringify(users, null, 2)}\n`, "utf8");
+  
+  // --- NEW SUPABASE STUFF ---
+  if (supabase) {
+    supabase.from('users').upsert(users).then(({ error }) => {
+      if (error) console.error("Supabase Users Sync Error:", error);
+    });
+  }
+  // --------------------------
+  
   return users;
 }
 
@@ -595,6 +630,13 @@ app.delete("/api/levels/:id", requireAdmin, async (req, res, next) => {
 
     const filteredLevels = levels.filter((level) => level.id !== req.params.id);
     await writeLevels(filteredLevels);
+    
+    // --- NEW SUPABASE STUFF ---
+    // If you delete a level locally, this also deletes it from Supabase
+    if (supabase) {
+      supabase.from('levels').delete().eq('id', req.params.id).then();
+    }
+    // --------------------------
 
     res.json({ success: true, data: levelToDelete });
   } catch (error) {
@@ -664,6 +706,12 @@ app.post("/api/submissions/:id/approve", requireAdmin, async (req, res, next) =>
       insertLevelAtPosition(levels, newLevel, req.body.position || levels.length + 1)
     );
     await writeSubmissions(submissions.filter((entry) => entry.id !== req.params.id));
+    
+    // --- NEW SUPABASE STUFF ---
+    if (supabase) {
+      supabase.from('submissions').delete().eq('id', req.params.id).then();
+    }
+    // --------------------------
 
     res.json({ success: true, data: newLevel });
   } catch (error) {
@@ -681,6 +729,13 @@ app.delete("/api/submissions/:id", requireAdmin, async (req, res, next) => {
     }
 
     await writeSubmissions(submissions.filter((entry) => entry.id !== req.params.id));
+    
+    // --- NEW SUPABASE STUFF ---
+    if (supabase) {
+      supabase.from('submissions').delete().eq('id', req.params.id).then();
+    }
+    // --------------------------
+
     res.json({ success: true, data: sanitizeSubmission(submission) });
   } catch (error) {
     next(error);

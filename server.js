@@ -1,9 +1,5 @@
-require("dotenv").config(); // <--- ADD THIS AT THE VERY TOP
+require("dotenv").config();
 
-const express = require("express");
-const session = require("express-session");
-const bcrypt = require("bcrypt");
-// ... rest of the code
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcrypt");
@@ -539,7 +535,6 @@ app.post("/api/levels", requireAdmin, async (req, res, next) => {
     const levels = await readLevels();
     const validated = validateLevelInput(req.body, levels);
     
-    // FIX: Removed "points: 0" so it stops getting created
     const newLevel = {
       id: Date.now().toString(),
       ...validated,
@@ -659,7 +654,6 @@ app.post("/api/submissions/:id/approve", requireAdmin, async (req, res, next) =>
       levels
     );
 
-    // FIX: Removed "points: 0" so it stops getting created
     const newLevel = {
       id: Date.now().toString(),
       ...validated,
@@ -718,7 +712,6 @@ async function startServer() {
   await ensureUsersFile();
   await ensureSubmissionsFile();
   
-  // Running this on startup will instantly clean your database of existing points/texts
   await writeLevels(await readLevels());
 
   const server = app.listen(PORT, () => {

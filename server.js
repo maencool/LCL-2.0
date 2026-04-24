@@ -6,11 +6,10 @@ const bcrypt = require("bcrypt");
 const fs = require("fs/promises");
 const path = require("path");
 
-// --- NEW SUPABASE STUFF ---
+// --- SUPABASE SETUP ---
 const { createClient } = require("@supabase/supabase-js");
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-// This safely connects to Supabase ONLY if you put the variables in Render!
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 // --------------------------
 
@@ -68,8 +67,9 @@ function sanitizeUser(user) {
     id: user.id,
     username: user.username || "",
     email: user.email || "",
-    displayName: user.displayName || user.username || "User",
-    role: user.role
+    // Handled casing in case Supabase returns 'displayname' instead of 'displayName'
+    displayName: user.displayName || user.displayname || user.username || "User",
+    role: user.role || "user"
   };
 }
 
@@ -124,7 +124,6 @@ async function ensureJsonFile(filePath, fallbackData) {
 
 async function readJsonArray(filePath, errorLabel) {
   const raw = await fs.readFile(filePath, "utf8");
-
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -167,28 +166,22 @@ async function writeLevels(levels) {
   const normalizedLevels = sortAndReposition(levels);
   await fs.writeFile(LEVELS_FILE, `${JSON.stringify(normalizedLevels, null, 2)}\n`, "utf8");
   
-  // --- NEW SUPABASE STUFF ---
   if (supabase) {
     supabase.from('levels').upsert(normalizedLevels).then(({ error }) => {
       if (error) console.error("Supabase Levels Sync Error:", error);
     });
   }
-  // --------------------------
-  
   return normalizedLevels;
 }
 
 async function writeSubmissions(submissions) {
   await fs.writeFile(SUBMISSIONS_FILE, `${JSON.stringify(submissions, null, 2)}\n`, "utf8");
   
-  // --- NEW SUPABASE STUFF ---
   if (supabase) {
     supabase.from('submissions').upsert(submissions).then(({ error }) => {
       if (error) console.error("Supabase Submissions Sync Error:", error);
     });
   }
-  // --------------------------
-  
   return submissions;
 }
 
@@ -200,7 +193,7 @@ async function ensureUsersFile() {
     .map((user) => ({
       ...user,
       email: normalizeEmail(user.email || user.username),
-      displayName: user.displayName || user.username || "User",
+      displayName: user.displayName || user.displayname || user.username || "User",
       username: createUniqueUsername(
         user.username || normalizeEmail(user.email).split("@")[0] || user.displayName,
         usedUsernames
@@ -231,14 +224,11 @@ async function readUsers() {
 async function writeUsers(users) {
   await fs.writeFile(USERS_FILE, `${JSON.stringify(users, null, 2)}\n`, "utf8");
   
-  // --- NEW SUPABASE STUFF ---
   if (supabase) {
     supabase.from('users').upsert(users).then(({ error }) => {
       if (error) console.error("Supabase Users Sync Error:", error);
     });
   }
-  // --------------------------
-  
   return users;
 }
 
@@ -246,12 +236,10 @@ function normalizeDifficulty(value) {
   if (typeof value !== "string") {
     return "";
   }
-
   const trimmed = value.trim();
   const match = Object.keys(difficultyOrder).find(
     (difficulty) => difficulty.toLowerCase() === trimmed.toLowerCase()
   );
-
   return match || "";
 }
 
@@ -261,45 +249,22 @@ function validateLevelInput(payload, existingLevels, currentId = null) {
   const difficulty = normalizeDifficulty(payload.difficulty);
   const youtubeUrl = typeof payload.youtubeUrl === "string" ? payload.youtubeUrl.trim() : "";
 
-  if (!name || name.length < 2 || name.length > 60) {
-    throw createError("Level name must be between 2 and 60 characters.");
-  }
-
-  if (!creator || creator.length < 2 || creator.length > 60) {
-    throw createError("Creator name must be between 2 and 60 characters.");
-  }
-
-  if (!difficulty) {
-    throw createError("Difficulty must be one of: Easy, Medium, Hard, Extreme.");
-  }
-
-  if (youtubeUrl && !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(youtubeUrl)) {
-    throw createError("Please enter a valid YouTube URL.");
-  }
+  if (!name || name.length < 2 || name.length > 60) throw createError("Level name must be between 2 and 60 characters.");
+  if (!creator || creator.length < 2 || creator.length > 60) throw createError("Creator name must be between 2 and 60 characters.");
+  if (!difficulty) throw createError("Difficulty must be one of: Easy, Medium, Hard, Extreme.");
+  if (youtubeUrl && !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(youtubeUrl)) throw createError("Please enter a valid YouTube URL.");
 
   const hasDuplicateName = existingLevels.some(
     (level) => level.id !== currentId && level.name.toLowerCase() === name.toLowerCase()
   );
+  if (hasDuplicateName) throw createError("A level with that name already exists.");
 
-  if (hasDuplicateName) {
-    throw createError("A level with that name already exists.");
-  }
-
-  return {
-    name,
-    creator,
-    difficulty,
-    youtubeUrl
-  };
+  return { name, creator, difficulty, youtubeUrl };
 }
 
 function validatePosition(position, maxPosition) {
   const numericPosition = Number(position);
-
-  if (!Number.isInteger(numericPosition) || numericPosition < 1) {
-    throw createError("Position must be a whole number starting from 1.");
-  }
-
+  if (!Number.isInteger(numericPosition) || numericPosition < 1) throw createError("Position must be a whole number starting from 1.");
   return Math.min(numericPosition, maxPosition);
 }
 
@@ -307,11 +272,7 @@ function insertLevelAtPosition(levels, level, requestedPosition) {
   const orderedLevels = sortAndReposition(levels);
   const clampedPosition = validatePosition(requestedPosition, orderedLevels.length + 1);
   orderedLevels.splice(clampedPosition - 1, 0, level);
-
-  return orderedLevels.map((entry, index) => ({
-    ...entry,
-    position: index + 1
-  }));
+  return orderedLevels.map((entry, index) => ({ ...entry, position: index + 1 }));
 }
 
 function validateSubmissionInput(payload) {
@@ -322,85 +283,39 @@ function validateSubmissionInput(payload) {
   const youtubeUrl = typeof payload.youtubeUrl === "string" ? payload.youtubeUrl.trim() : "";
   const isChallenge = payload.isChallenge === true || payload.isChallenge === "true";
 
-  if (!levelName || levelName.length < 2 || levelName.length > 60) {
-    throw createError("Level name must be between 2 and 60 characters.");
-  }
+  if (!levelName || levelName.length < 2 || levelName.length > 60) throw createError("Level name must be between 2 and 60 characters.");
+  if (!creator || creator.length < 2 || creator.length > 60) throw createError("Creator name must be between 2 and 60 characters.");
+  if (!senderName || senderName.length < 2 || senderName.length > 40) throw createError("Sender name must be between 2 and 40 characters.");
+  if (!difficulty) throw createError("Difficulty must be one of: Easy, Medium, Hard, Extreme.");
+  if (!youtubeUrl || youtubeUrl.length > 300) throw createError("A YouTube proof URL is required.");
+  if (!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(youtubeUrl)) throw createError("Please enter a valid YouTube URL.");
 
-  if (!creator || creator.length < 2 || creator.length > 60) {
-    throw createError("Creator name must be between 2 and 60 characters.");
-  }
-
-  if (!senderName || senderName.length < 2 || senderName.length > 40) {
-    throw createError("Sender name must be between 2 and 40 characters.");
-  }
-
-  if (!difficulty) {
-    throw createError("Difficulty must be one of: Easy, Medium, Hard, Extreme.");
-  }
-
-  if (!youtubeUrl || youtubeUrl.length > 300) {
-    throw createError("A YouTube proof URL is required.");
-  }
-
-  if (!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(youtubeUrl)) {
-    throw createError("Please enter a valid YouTube URL.");
-  }
-
-  return {
-    levelName,
-    creator,
-    difficulty,
-    senderName,
-    youtubeUrl,
-    isChallenge
-  };
+  return { levelName, creator, difficulty, senderName, youtubeUrl, isChallenge };
 }
 
 function validateEmail(email) {
   const normalized = normalizeEmail(email);
-
-  if (!normalized || normalized.length > 120) {
-    throw createError("Email is required and must be shorter than 120 characters.");
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    throw createError("Please enter a valid email address.");
-  }
-
+  if (!normalized || normalized.length > 120) throw createError("Email is required and must be shorter than 120 characters.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw createError("Please enter a valid email address.");
   return normalized;
 }
 
 function validateDisplayName(displayName) {
   const normalized = typeof displayName === "string" ? displayName.trim() : "";
-
-  if (!normalized || normalized.length < 2 || normalized.length > 40) {
-    throw createError("Display name must be between 2 and 40 characters.");
-  }
-
+  if (!normalized || normalized.length < 2 || normalized.length > 40) throw createError("Display name must be between 2 and 40 characters.");
   return normalized;
 }
 
 function validateUsername(username) {
   const normalized = typeof username === "string" ? username.trim().toLowerCase() : "";
-
-  if (!normalized || normalized.length < 3 || normalized.length > 20) {
-    throw createError("Username must be between 3 and 20 characters.");
-  }
-
-  if (!/^[a-z0-9_]+$/.test(normalized)) {
-    throw createError("Username can only use lowercase letters, numbers, and underscores.");
-  }
-
+  if (!normalized || normalized.length < 3 || normalized.length > 20) throw createError("Username must be between 3 and 20 characters.");
+  if (!/^[a-z0-9_]+$/.test(normalized)) throw createError("Username can only use lowercase letters, numbers, and underscores.");
   return normalized;
 }
 
 function validatePassword(password) {
   const normalized = typeof password === "string" ? password : "";
-
-  if (normalized.length < 6 || normalized.length > 72) {
-    throw createError("Password must be between 6 and 72 characters.");
-  }
-
+  if (normalized.length < 6 || normalized.length > 72) throw createError("Password must be between 6 and 72 characters.");
   return normalized;
 }
 
@@ -410,7 +325,6 @@ async function attachCurrentUser(req, res, next) {
       req.currentUser = null;
       return next();
     }
-
     const users = await readUsers();
     const user = users.find((entry) => entry.id === req.session.userId);
 
@@ -419,7 +333,6 @@ async function attachCurrentUser(req, res, next) {
       req.currentUser = null;
       return next();
     }
-
     req.currentUser = sanitizeUser(user);
     return next();
   } catch (error) {
@@ -428,22 +341,13 @@ async function attachCurrentUser(req, res, next) {
 }
 
 function requireAuth(req, res, next) {
-  if (!req.currentUser) {
-    return next(createError("You must be logged in to do that.", 401));
-  }
-
+  if (!req.currentUser) return next(createError("You must be logged in to do that.", 401));
   return next();
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.currentUser) {
-    return next(createError("You must be logged in to do that.", 401));
-  }
-
-  if (req.currentUser.role !== "admin") {
-    return next(createError("Admin access required.", 403));
-  }
-
+  if (!req.currentUser) return next(createError("You must be logged in to do that.", 401));
+  if (req.currentUser.role !== "admin") return next(createError("Admin access required.", 403));
   return next();
 }
 
@@ -464,12 +368,10 @@ app.post("/api/register", async (req, res, next) => {
     if (users.some((user) => (user.username || "").toLowerCase() === username)) {
       throw createError("That username is already in use.");
     }
-
     if (users.some((user) => normalizeEmail(user.email || user.username) === email)) {
       throw createError("That email is already in use.");
     }
-
-    if (users.some((user) => (user.displayName || "").toLowerCase() === displayName.toLowerCase())) {
+    if (users.some((user) => (user.displayName || user.displayname || "").toLowerCase() === displayName.toLowerCase())) {
       throw createError("That display name is already used. Please choose another display name.");
     }
 
@@ -478,7 +380,7 @@ app.post("/api/register", async (req, res, next) => {
       id: Date.now().toString(),
       username,
       email,
-      displayName,
+      displayName, // Uses your specific spelling
       password: hashedPassword,
       role: "user"
     };
@@ -492,6 +394,7 @@ app.post("/api/register", async (req, res, next) => {
   }
 });
 
+// --- UPDATED LOGIN ROUTE (Fixes your plain text password issue) ---
 app.post("/api/login", async (req, res, next) => {
   try {
     const email = validateEmail(req.body.email);
@@ -503,7 +406,15 @@ app.post("/api/login", async (req, res, next) => {
       throw createError("Invalid email or password.", 401);
     }
 
-    const passwordMatches = await bcrypt.compare(password, user.password);
+    let passwordMatches = false;
+
+    // Fix: If the password in the database doesn't look like a hashed password 
+    // (doesn't start with $2), check it as plain text. 
+    if (user.password && !user.password.startsWith('$2')) {
+      passwordMatches = (password === user.password);
+    } else {
+      passwordMatches = await bcrypt.compare(password, user.password);
+    }
 
     if (!passwordMatches) {
       throw createError("Invalid email or password.", 401);
@@ -522,19 +433,11 @@ app.post("/api/admin/grant-admin", requireAdmin, async (req, res, next) => {
     const users = await readUsers();
     const targetIndex = users.findIndex((user) => (user.username || "").toLowerCase() === username);
 
-    if (targetIndex === -1) {
-      throw createError("No user was found with that username.", 404);
-    }
-
-    if (users[targetIndex].role === "admin") {
-      throw createError("That user is already an admin.");
-    }
+    if (targetIndex === -1) throw createError("No user was found with that username.", 404);
+    if (users[targetIndex].role === "admin") throw createError("That user is already an admin.");
 
     const updatedUsers = [...users];
-    updatedUsers[targetIndex] = {
-      ...updatedUsers[targetIndex],
-      role: "admin"
-    };
+    updatedUsers[targetIndex] = { ...updatedUsers[targetIndex], role: "admin" };
 
     await writeUsers(updatedUsers);
     res.json({ success: true, data: sanitizeUser(updatedUsers[targetIndex]) });
@@ -545,10 +448,7 @@ app.post("/api/admin/grant-admin", requireAdmin, async (req, res, next) => {
 
 app.post("/api/logout", requireAuth, (req, res, next) => {
   req.session.destroy((error) => {
-    if (error) {
-      return next(createError("Could not log out right now.", 500));
-    }
-
+    if (error) return next(createError("Could not log out right now.", 500));
     res.clearCookie("connect.sid");
     return res.json({ success: true, data: null });
   });
@@ -568,15 +468,8 @@ app.post("/api/levels", requireAdmin, async (req, res, next) => {
     const levels = await readLevels();
     const validated = validateLevelInput(req.body, levels);
     
-    const newLevel = {
-      id: Date.now().toString(),
-      ...validated,
-      position: 0
-    };
-
-    const updatedLevels = await writeLevels(
-      insertLevelAtPosition(levels, newLevel, req.body.position || levels.length + 1)
-    );
+    const newLevel = { id: Date.now().toString(), ...validated, position: 0 };
+    const updatedLevels = await writeLevels(insertLevelAtPosition(levels, newLevel, req.body.position || levels.length + 1));
     const savedLevel = updatedLevels.find((level) => level.id === newLevel.id);
 
     res.status(201).json({ success: true, data: savedLevel });
@@ -590,24 +483,15 @@ app.put("/api/levels/:id", requireAdmin, async (req, res, next) => {
     const levels = await readLevels();
     const targetIndex = levels.findIndex((level) => level.id === req.params.id);
 
-    if (targetIndex === -1) {
-      throw createError("Level not found.", 404);
-    }
+    if (targetIndex === -1) throw createError("Level not found.", 404);
 
     const validated = validateLevelInput(req.body, levels, req.params.id);
     const currentLevel = levels[targetIndex];
-    const updatedLevel = {
-      ...currentLevel,
-      ...validated
-    };
+    const updatedLevel = { ...currentLevel, ...validated };
 
     const remainingLevels = levels.filter((level) => level.id !== req.params.id);
     const savedLevels = await writeLevels(
-      insertLevelAtPosition(
-        remainingLevels,
-        updatedLevel,
-        req.body.position || currentLevel.position || remainingLevels.length + 1
-      )
+      insertLevelAtPosition(remainingLevels, updatedLevel, req.body.position || currentLevel.position || remainingLevels.length + 1)
     );
     const savedLevel = savedLevels.find((level) => level.id === req.params.id);
 
@@ -622,19 +506,14 @@ app.delete("/api/levels/:id", requireAdmin, async (req, res, next) => {
     const levels = await readLevels();
     const levelToDelete = levels.find((level) => level.id === req.params.id);
 
-    if (!levelToDelete) {
-      throw createError("Level not found.", 404);
-    }
+    if (!levelToDelete) throw createError("Level not found.", 404);
 
     const filteredLevels = levels.filter((level) => level.id !== req.params.id);
     await writeLevels(filteredLevels);
     
-    // --- NEW SUPABASE STUFF ---
-    // If you delete a level locally, this also deletes it from Supabase
     if (supabase) {
       supabase.from('levels').delete().eq('id', req.params.id).then();
     }
-    // --------------------------
 
     res.json({ success: true, data: levelToDelete });
   } catch (error) {
@@ -652,13 +531,9 @@ app.post("/api/submissions", async (req, res, next) => {
       throw createError("That level already exists in the leaderboard.");
     }
 
-    const submission = {
-      id: Date.now().toString(),
-      ...payload,
-      createdAt: new Date().toISOString()
-    };
-
+    const submission = { id: Date.now().toString(), ...payload, createdAt: new Date().toISOString() };
     await writeSubmissions([submission, ...submissions]);
+    
     res.status(201).json({ success: true, data: sanitizeSubmission(submission) });
   } catch (error) {
     next(error);
@@ -680,36 +555,23 @@ app.post("/api/submissions/:id/approve", requireAdmin, async (req, res, next) =>
     const levels = await readLevels();
     const submission = submissions.find((entry) => entry.id === req.params.id);
 
-    if (!submission) {
-      throw createError("Submission not found.", 404);
-    }
+    if (!submission) throw createError("Submission not found.", 404);
 
-    const validated = validateLevelInput(
-      {
-        name: submission.levelName,
-        creator: submission.creator,
-        difficulty: submission.difficulty,
-        youtubeUrl: submission.youtubeUrl
-      },
-      levels
-    );
+    const validated = validateLevelInput({
+      name: submission.levelName,
+      creator: submission.creator,
+      difficulty: submission.difficulty,
+      youtubeUrl: submission.youtubeUrl
+    }, levels);
 
-    const newLevel = {
-      id: Date.now().toString(),
-      ...validated,
-      position: 0
-    };
+    const newLevel = { id: Date.now().toString(), ...validated, position: 0 };
 
-    await writeLevels(
-      insertLevelAtPosition(levels, newLevel, req.body.position || levels.length + 1)
-    );
+    await writeLevels(insertLevelAtPosition(levels, newLevel, req.body.position || levels.length + 1));
     await writeSubmissions(submissions.filter((entry) => entry.id !== req.params.id));
     
-    // --- NEW SUPABASE STUFF ---
     if (supabase) {
       supabase.from('submissions').delete().eq('id', req.params.id).then();
     }
-    // --------------------------
 
     res.json({ success: true, data: newLevel });
   } catch (error) {
@@ -722,17 +584,13 @@ app.delete("/api/submissions/:id", requireAdmin, async (req, res, next) => {
     const submissions = await readSubmissions();
     const submission = submissions.find((entry) => entry.id === req.params.id);
 
-    if (!submission) {
-      throw createError("Submission not found.", 404);
-    }
+    if (!submission) throw createError("Submission not found.", 404);
 
     await writeSubmissions(submissions.filter((entry) => entry.id !== req.params.id));
     
-    // --- NEW SUPABASE STUFF ---
     if (supabase) {
       supabase.from('submissions').delete().eq('id', req.params.id).then();
     }
-    // --------------------------
 
     res.json({ success: true, data: sanitizeSubmission(submission) });
   } catch (error) {
@@ -740,27 +598,43 @@ app.delete("/api/submissions/:id", requireAdmin, async (req, res, next) => {
   }
 });
 
-app.use("/api", (req, res) => {
-  res.status(404).json({ success: false, message: "API route not found." });
-});
+app.use("/api", (req, res) => res.status(404).json({ success: false, message: "API route not found." }));
 
 app.use((req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ success: false, message: "API route not found." });
-  }
-
+  if (req.path.startsWith("/api/")) return res.status(404).json({ success: false, message: "API route not found." });
   return res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;
-  const message =
-    status === 500 ? "Internal server error." : error.message || "Request failed.";
-
+  const message = status === 500 ? "Internal server error." : error.message || "Request failed.";
   res.status(status).json({ success: false, message });
 });
 
+// --- UPDATED START SERVER LOOP (Fixes Render data deletion issue) ---
 async function startServer() {
+  
+  // 1. Ensure directories exist first
+  await fs.mkdir(DATA_DIR, { recursive: true });
+
+  // 2. PULL FROM SUPABASE FIRST (This is crucial for Render!)
+  if (supabase) {
+    try {
+      console.log("Syncing data from Supabase to Render storage...");
+      const { data: dbUsers } = await supabase.from('users').select('*');
+      if (dbUsers && dbUsers.length > 0) await fs.writeFile(USERS_FILE, JSON.stringify(dbUsers, null, 2));
+
+      const { data: dbLevels } = await supabase.from('levels').select('*');
+      if (dbLevels && dbLevels.length > 0) await fs.writeFile(LEVELS_FILE, JSON.stringify(dbLevels, null, 2));
+
+      const { data: dbSubs } = await supabase.from('submissions').select('*');
+      if (dbSubs && dbSubs.length > 0) await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify(dbSubs, null, 2));
+    } catch (err) {
+      console.error("Error pulling from Supabase on startup:", err);
+    }
+  }
+
+  // 3. Setup files if they still don't exist
   await ensureLevelsFile();
   await ensureUsersFile();
   await ensureSubmissionsFile();
@@ -776,7 +650,6 @@ async function startServer() {
       console.error(`Port ${PORT} is already in use. Stop the other server or set a different PORT.`);
       process.exit(1);
     }
-
     console.error("Failed to start server:", error.message);
     process.exit(1);
   });
